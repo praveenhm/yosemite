@@ -2,7 +2,7 @@ import os
 import json
 from typing import List, Dict, Union, Optional
 from yosemite.llms import LLM
-from yosemite import Yosemite
+from yosemite.util.richtext import RichText
 from yosemite.data.database import Database
 from yosemite.util.input import Input, Dialog
 
@@ -15,7 +15,7 @@ class RAG:
         except Exception as e:
             print(f"Error initializing LLM: {e}")
 
-    def build(self, db: Union[str, Database] = None):
+    def create(self, db: Union[str, Database] = None):
         if not db:
             self.db = Database()
             print("Creating New Database... @ default path = './databases/db'")
@@ -94,7 +94,7 @@ class Serve:
     """
 
     def __init__(self, model: Union[LLM, RAG], prompt: str = "Welcome to the Chatbot!", history_file: str = "chat_history.json", max_history: int = 10):
-        self.yosemite = Yosemite()
+        self.text = RichText()
         self.prompt = prompt
         self.model = model
         self.history_file = history_file
@@ -109,14 +109,14 @@ class Serve:
         based on the provided LLM or RAG instance. The chat history is stored and updated throughout the conversation.
         The user can exit the chat by typing "/exit" or "/bye".
         """
-        self.yosemite.say(message=self.prompt, color="rgb(54, 54, 250)", bold=True)
+        self.text.say(message=self.prompt, style="bold underline")
         print("Type '/exit' or '/bye' to end the conversation.\n")
 
         while True:
             user_input = Input.ask("User: ")
 
             if user_input.lower() in ["/exit", "/bye"]:
-                self.yosemite.say("Chatbot: Goodbye!", bold=True)
+                self.text.say("Chatbot: Goodbye!", style="bold")
                 break
 
             self.chat_history.append({"role": "user", "content": user_input})
