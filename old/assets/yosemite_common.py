@@ -184,7 +184,7 @@ class YosemiteNotebookCommon:
     def box_text(self, title: str, content: str):
         box = f"""
         <div class="darkolivebg p-4 w-full flex flex-col rounded-md mb-2 space-y-4">
-        <h2 class="lex cream font-medium text-2xl">{title}</h2>
+        <span class="lex cream font-medium text-2xl">{title}</span>
         <p class="font-medium peach text-sm">{content}</p>
         </div>
         """
@@ -192,8 +192,8 @@ class YosemiteNotebookCommon:
 
     def box_subtitle(self, title: str):
         box = f"""
-        <div class="creambg p-4 w-full flex flex-col rounded-md mb-2 space-y-4">
-        <h2 class="lex darkolive font-medium text-2xl">{title}</h2>
+        <div class="creambg p-4 w-full flex flex-col items-center rounded-md mb-2 space-y-4">
+        <span class="lex darkolive font-medium mx-auto text-2xl">{title}</span>
         </div>
         """
         display(HTML(box))
