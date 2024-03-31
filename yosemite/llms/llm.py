@@ -10,7 +10,7 @@ from mistralai.models.chat_completion import ChatMessage
 from huggingface_hub import InferenceClient
 
 class LLM:
-    def __init__(self, provider: str, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None):
+    def __init__(self, provider: Optional[str] = "openai", api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None):
             """
             Initializes the LLM class with the specified provider, API key, base URL, and model.
 
@@ -155,19 +155,19 @@ class LLM:
             return message.content
         elif self.provider == "nvidia":
             if model is None:
-                model = "mistralai/mistral-7b-instruct-v0.2"
+                self.model_name = "mistralai/mistral-7b-instruct-v0.2"
             elif model == "mistral":
-                model = "mistralai/mistral-7b-instruct-v0.2"
+                self.model_name = "mistralai/mistral-7b-instruct-v0.2"
             elif model == "llama":
-                model = "meta/llama2-70b"
+                self.model_name = "meta/llama2-70b"
             elif model == "gemma":
-                model == "google/gemma-7b"
+                self.model_name == "google/gemma-7b"
             elif model == "fuyu":
-                model = "adept/fuyu-8b"
-            query = f"{system}\n\nUser: {query}",
-            message = str([{"role": "user", "content": query}])
+                self.model_name = "adept/fuyu-8b"
+            query = str(f"{system}\n\nUser: {query}")
+            message = [{"role": "user", "content": query}]
             completion = self.llm.chat.completions.create(
-                model=model,
+                model=self.model_name,
                 messages=message,
                 temperature=temperature,
                 top_p=top_p,
@@ -251,31 +251,13 @@ class LLM:
             
             prompt = f"{system}\n\nUser: {query}\nAssistant:"
             
-            from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
-            
-            config = AutoConfig.from_pretrained(self.model_name_or_path)
-            tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
-            model = AutoModelForCausalLM.from_pretrained(self.model_name_or_path, config=config)
-            
-        generation_kwargs = {
-            "max_length": max_length,
-            "num_return_sequences": num_return_sequences,
-            "temperature": temperature,
-            "top_k": top_k,
-            "top_p": top_p,
-            "do_sample": do_sample,
-            "repetition_penalty": 1.2,
-            "no_repeat_ngram_size": 2,
-            "pad_token_id": tokenizer.eos_token_id,
-            "early_stopping": True,
-            "num_beams": 3,
-        }
-        
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=max_length)
-        generated_outputs = model.generate(**inputs, **generation_kwargs)
-        generated_text = tokenizer.decode(generated_outputs[0], skip_special_tokens=True)
-        generated_text = generated_text.split("Assistant:", 1)[1].strip()
-        return generated_text
+            from transformers import pipeline
+
+            pipe = pipeline("text-generation", self.model)
+            messages = [
+                {"role": "user", "content": prompt},
+            ]
+            print(pipe(messages, max_new_tokens=128)[0]['generated_text'][-1])
 
 if __name__ == "__main__":
     instructor = LLM(provider="openai")

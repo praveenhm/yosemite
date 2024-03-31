@@ -7,16 +7,25 @@ from yosemite.data.database import Database
 from yosemite.tools.input import Input, Dialog
 
 class RAG:
-    def __init__(self, provider: str = "openai", api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, provider: str = "openai", api_key: Optional[str] = None, base_url: Optional[str] = None, repo: Optional[str] = None):
         self.name = None
         self.llm = None
         self.db = None
         self.provider = provider
-        try:
-            self.llm = LLM(provider, api_key, base_url)
-            print(f"LLM initialized with provider: {provider}")
-        except Exception as e:
-            print(f"Error initializing LLM: {e}")
+        if self.provider == "transformers":
+            self.repo = repo
+            try:
+                self.llm = LLM(provider="transformers", model=self.repo)
+                print(f"{self.repo} Initialized")
+            except Exception as e:
+                print(f"Error initializing {self.repo}: {e}")
+
+        else:
+            try:
+                self.llm = LLM(provider, api_key, base_url)
+                print(f"LLM initialized with provider: {provider}")
+            except Exception as e:
+                print(f"Error initializing LLM: {e}")
 
     def create(self, db: Union[str, Database] = None):
         if not db:
