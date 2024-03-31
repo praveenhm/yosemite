@@ -1,8 +1,7 @@
 from yosemite.transformers.text import Chunker
-from yosemite.transformers.transform import CrossEncoder as CrossEncode
-from yosemite.transformers.transform import SentenceTransformer as SentenceTransform
+from yosemite.transformers.transform import CrossEncoder
 from sentence_transformers import SentenceTransformer
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional, Dict, Union
 import concurrent.futures
 import os
 import uuid
@@ -262,7 +261,7 @@ class Database:
             writer.add_document(id=doc_id, content=doc_content, chunks="\n".join(chunks), vectors=vectors)
         writer.commit()
 
-    def search(self, query: str, fields: Optional[List[str]] = None, k: int = 5, m: int = 3) -> List[Tuple[str, str, float]]:
+    def search(self, query: str, fields: Optional[List[str]] = None, k: int = 5, m: int = 3) -> List[Dict[str, Union[str, float]]]:
         if not self.ix:
             raise ValueError("Index has not been built or loaded.")
 
@@ -299,7 +298,15 @@ class Database:
                 cross_encoder = CrossEncoder()
                 ranked_results = cross_encoder.rank(query, [chunk for _, chunk in chunk_results])
 
-                return [(doc_id, chunk, score) for (doc_id, chunk), score in zip(chunk_results, ranked_results)]
+                formatted_results = []
+                for (doc_id, chunk), score in zip(chunk_results, ranked_results):
+                    formatted_results.append({
+                        "document_id": doc_id,
+                        "chunk": chunk,
+                        "relevance_score": score
+                    })
+
+                return formatted_results
 
             except QueryParserError as e:
                 print(f"QueryParserError: {e}")
@@ -341,7 +348,7 @@ class Database:
 
         sorted_results = sorted(vector_results, key=lambda x: x[2], reverse=True)[:k*m]
         
-        cross_encode = CrossEncode()
+        cross_encode = CrossEncoder()
         ranked_results = cross_encode.rank(query, [result[1] for result in sorted_results])
 
         return [(doc_id, chunk, score) for (doc_id, chunk, _), score in zip(sorted_results, ranked_results)]

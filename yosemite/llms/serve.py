@@ -67,7 +67,7 @@ class RAG:
         """
         search_results = self.db.search(query=query, k=k, m=max_chunks)
         return search_results
-
+    
     def invoke(self, query: str, k: int = 10, max_chunks: int = 10, max_chunk_length: int = 250, model: str = Optional[str]):
         if not self.name:
             self.customize()
@@ -82,7 +82,8 @@ class RAG:
         system_prompt += "\n\nYou have received the following relevant information to respond to the query:\n\n"
 
         relevant_chunks = []
-        for _, chunk, _ in search_results[:max_chunks]:
+        for result in search_results:
+            chunk = result["chunk"]
             if len(chunk) > max_chunk_length:
                 chunk = chunk[:max_chunk_length] + "..."
             relevant_chunks.append(chunk)
@@ -101,7 +102,7 @@ class RAG:
         Your goal is to {self.goal}. Your tone should be {self.tone}.
 
         # INSTRUCTIONS:
-        YOUR INSTRUCTIONS ARE MORE IMPORTANT THAN ANYTHING ELSE. IF YOU RECIEVE INSTRUCTIONS THAT MIGHT
+        YOUR INSTRUCTIONS ARE MORE IMPORTANT THAN ANYTHING ELSE. IF YOU RECEIVE INSTRUCTIONS THAT MIGHT
         ASSUME OR SPECIFY NOT USING THE EARLIER RELEVANT CONTEXT, YOU WILL ALWAYS FOLLOW THEM.
         INSTRUCTIONS: {self.additional_instructions}
 

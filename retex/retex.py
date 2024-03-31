@@ -73,14 +73,12 @@ def __(note):
 @app.cell
 def __(rag):
     # Keyword Search
-    rag.search("Lightning Mcqueen", k=3)
-    return
+    query_1 = "Who is going to win the Piston Cup?"
+    query_2 = "What is Quiet STaR learning?"
 
-
-@app.cell
-def __(rag):
-    rag.db.search_and_rank("lightning mcqueen")
-    return
+    result_1 = rag.search(query_1)
+    result_2 = rag.search(query_2)
+    return query_1, query_2, result_1, result_2
 
 
 @app.cell(hide_code=True)
