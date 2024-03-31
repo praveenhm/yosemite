@@ -242,11 +242,9 @@ class YosemiteNotebookCommon:
         <div class="darkbg p-4 w-full flex flex-col rounded-md mb-2 space-y-4">
         <h2 class="lex cream font-medium text-2xl">{title}</h2>
         <p class="font-medium cream text-sm">{content}</p>
-        
         <pre class="w-full language-python"><code class=" language-{language}">
         {code}
         </code></pre>
-
         </div>
         """
         display(HTML(box))
