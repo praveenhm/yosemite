@@ -1,2 +1,2 @@
 from .llm import LLM
-from .serve import Serve, RAG
+from .serve import Chat, RAG

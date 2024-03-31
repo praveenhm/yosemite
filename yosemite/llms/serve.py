@@ -50,30 +50,27 @@ class RAG:
         self.tone = tone
         self.additional_instructions = additional_instructions
 
-    def invoke(self, query: str, k: int = 5):
+    def invoke(self, query: str, k: int = 10, max_chunks: int = 10, max_chunk_length: int = 250):
         if not self.name:
             self.customize()
         search_results = self.db.search_and_rank(query, k)
-        search_chunks = [str(result[1]) for result in search_results]
         
-        search_texts = []
-        for chunk in search_chunks:
-            text_start_index = chunk.find(": ")
-            if text_start_index != -1:
-                text = chunk[text_start_index + 2:]
-                search_texts.append(text)
-            else:
-                search_texts.append(chunk)
-
         system_prompt = f"Your name is {self.name}. You are an AI {self.role}. Your goal is to {self.goal}. Your tone should be {self.tone}."
-
+        
         if self.additional_instructions:
             system_prompt += f" Additional instructions: {self.additional_instructions}"
-
+        
         system_prompt += "\n\nYou have received the following relevant information to respond to the query:\n\n"
-        system_prompt += "\n".join(search_texts)
+        
+        relevant_chunks = []
+        for _, chunk, _ in search_results[:max_chunks]:
+            if len(chunk) > max_chunk_length:
+                chunk = chunk[:max_chunk_length] + "..."
+            relevant_chunks.append(chunk)
+        
+        system_prompt += "\n".join(relevant_chunks)
         system_prompt += f"\n\nUse this information to provide a helpful response to the following query: {query}"
-
+        print(system_prompt)
         response = self.llm.invoke(
             system=system_prompt,
             query=query
@@ -81,7 +78,7 @@ class RAG:
 
         return response
 
-class Serve:
+class Chat:
     """
     A lightweight chatbot client for interacting with LLMs or RAG instances through a CLI interface.
 
@@ -169,5 +166,5 @@ class Serve:
 
 if __name__ == "__main__":
     llm = LLM(provider="openai")
-    chatbot = Serve(llm)
+    chatbot = Chat(llm)
     chatbot.serve() 

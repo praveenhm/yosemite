@@ -55,8 +55,14 @@ class Database:
         self.model_name = bert_model
         self.ix = None
         self.schema = schema
-        self.index_dir = None
         self.analyzer = whoosh_analyzer
+
+        if self.schema is None:
+            if self.analyzer == "standard":
+                self.schema = Schema(id=ID(stored=True), content=TEXT(analyzer=StandardAnalyzer(), stored=True), 
+                                     chunks=TEXT(stored=True), vectors=STORED)
+
+        self.index_dir = None
 
         if self.model_name is None:
             self.model_name = "paraphrase-MiniLM-L6-v2" 
@@ -299,38 +305,31 @@ class Database:
             keywords = q.all_terms()
 
         with self.ix.searcher() as searcher:
+            # Use the extracted keywords for searching
             q = Or([Term("content", keyword) for keyword in keywords])
             whoosh_results = searcher.search(q, limit=k)
-            whoosh_chunks = [hit["chunks"] for hit in whoosh_results]
             doc_ids = [hit["id"] for hit in whoosh_results]
+            doc_chunks = [hit["chunks"].split("\n")[:k] for hit in whoosh_results]
             doc_vectors = [hit["vectors"] for hit in whoosh_results]
+            
+            results = []
+            for doc_id, chunks, vectors in zip(doc_ids, doc_chunks, doc_vectors):
+                for chunk, vector in zip(chunks, vectors):
+                    results.append((doc_id, chunk, vector))
 
         embedder = SentenceTransformer(self.model_name)
-        query_vector = embedder.encode([query])[0]
+        query_vector = torch.tensor(embedder.encode([query])[0])
         vector_results = []
-        for doc_id, doc_chunks, doc_vectors_str in zip(doc_ids, whoosh_chunks, doc_vectors):
-            try:
-                doc_vectors = eval(doc_vectors_str)
-                if not self.dimension:
-                    self.dimension = len(doc_vectors[0])
-                index = AnnoyIndex(self.dimension, 'angular')
-                for i, vector in enumerate(doc_vectors):
-                    index.add_item(i, vector)
-                index.build(10)
-                indices = index.get_nns_by_vector(query_vector, k, include_distances=False)
-                for idx in indices:
-                    vector_results.append((doc_id, doc_chunks.split("\n")[idx]))
-            except ValueError as e:
-                if "source code string cannot contain null bytes" in str(e):
-                    continue
-                else:
-                    raise e
+        for doc_id, chunk, vector in results:
+            chunk_vector = torch.tensor(vector)
+            similarity = torch.nn.functional.cosine_similarity(query_vector, chunk_vector, dim=0).item()
+            vector_results.append((doc_id, chunk, float(similarity)))
 
-        combined_results = whoosh_chunks + [chunk for _, chunk in vector_results]
+        combined_results = vector_results
         cross_encode = CrossEncode()
-        ranked_results = cross_encode.rank(query, combined_results)
+        ranked_results = cross_encode.rank(query, [result[1] for result in combined_results])
 
-        return ranked_results
+        return [(doc_id, chunk, score) for (doc_id, chunk, _), score in zip(combined_results, ranked_results)]
 
 if __name__ == "__main__":
     db = Database()

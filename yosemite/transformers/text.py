@@ -33,27 +33,37 @@ class Chunker:
         nlp: A spaCy NLP model to process text.
     """
 
-    def __init__(self, model: str = "en_core_web_sm"):
+    def __init__(self, model: str = "en_core_web_sm", max_chunk_length: int = 100):
         try:
             ensure_model(model)
         except Exception as e:
             raise Exception(f"Failed to load spaCy model {model}. Please use the spacy CLI, by entering this command in your terminal 'spacy download {model}'. {e}")
         self.nlp = spacy.load(model)
+        self.max_chunk_length = max_chunk_length
 
     def _chunk_text(self, text: str) -> List[str]:
         doc = self.nlp(text)
-        if len(doc) > 500:  # Adjust the threshold as needed
-            chunks = [chunk.text.strip() for chunk in doc.sents if len(chunk) > 1]
-        else:
-            chunks = [sent.text.strip() for sent in doc.sents]
-
-        # Filter out chunks that are too short or empty
-        chunks = [chunk for chunk in chunks if len(chunk.split()) > 3]  # Adjust the threshold as needed
-
-        # Remove special characters and line breaks
+        chunks = []
+        for sent in doc.sents:
+            if len(sent) <= self.max_chunk_length:
+                chunks.append(sent.text.strip())
+            else:
+                words = [token.text for token in sent]
+                chunk = ""
+                for word in words:
+                    if len(chunk) + len(word) <= self.max_chunk_length:
+                        chunk += word + " "
+                    else:
+                        chunks.append(chunk.strip())
+                        chunk = word + " "
+                if chunk:
+                    chunks.append(chunk.strip())
+    
+        chunks = [chunk for chunk in chunks if len(chunk.split()) > 3]
         chunks = [chunk.replace('\n', ' ').replace('\r', '') for chunk in chunks]
 
         return chunks
+
 
     def chunk(self, text: Union[str, List[str], Tuple[str], List[Tuple[str]]]) -> List[str]:
         """
@@ -74,7 +84,7 @@ class Chunker:
             return []
 
         if isinstance(text, str):
-            return self._chunk_text(text)
+                    return self._chunk_text(text)
         elif isinstance(text, (list, tuple)):
             if all(isinstance(item, str) for item in text):
                 with ThreadPoolExecutor() as executor:
