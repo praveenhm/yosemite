@@ -2,9 +2,9 @@ import os
 import json
 from typing import List, Dict, Union, Optional
 from yosemite.llms import LLM
-from yosemite.util.richtext import RichText
+from yosemite.tools.richtext import RichText
 from yosemite.data.database import Database
-from yosemite.util.input import Input, Dialog
+from yosemite.tools.input import Input, Dialog
 
 class RAG:
     def __init__(self, provider: str = "openai", api_key: Optional[str] = None, base_url: Optional[str] = None):

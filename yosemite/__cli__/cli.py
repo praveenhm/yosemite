@@ -2,7 +2,7 @@ import argparse
 import time
 import random
 from rich import print as rprint
-from yosemite.util.richtext import RichText
+from yosemite.tools.richtext import RichText
 
 def hello(args):
     text = RichText()
