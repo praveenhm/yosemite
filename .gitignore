@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+.env
+
 yosemite/__cli__/__pycache__/
 yosemite/__pycache__/
 yosemite/ml/__pycache__/

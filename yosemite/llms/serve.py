@@ -8,7 +8,9 @@ from yosemite.util.input import Input, Dialog
 
 class RAG:
     def __init__(self, provider: str = "openai", api_key: Optional[str] = None, base_url: Optional[str] = None):
+        self.name = None
         self.llm = None
+        self.db = None
         try:
             self.llm = LLM(provider, api_key, base_url)
             print(f"LLM initialized with provider: {provider}")
@@ -33,7 +35,15 @@ class RAG:
         elif isinstance(db, Database):
             self.db = db
 
-    def customize(self, name: str = "RAG Genius", role: str = "assistant", goal: str = "answer questions in a helpful manner", tone: str = "friendly", additional_instructions: Optional[str] = None):
+    def build(self, directory: str = None):
+        if not self.db:
+            self.create()
+        if directory:
+            print(f"Loading documents from {directory}...")
+
+        self.db.load_docs(dir=directory)
+
+    def customize(self, name: str = "AI Assistant", role: str = "assistant", goal: str = "answer questions in a helpful manner", tone: str = "friendly", additional_instructions: Optional[str] = None):
         self.name = name
         self.role = role
         self.goal = goal
@@ -41,6 +51,8 @@ class RAG:
         self.additional_instructions = additional_instructions
 
     def invoke(self, query: str, k: int = 5):
+        if not self.name:
+            self.customize()
         search_results = self.db.search_and_rank(query, k)
         search_chunks = [str(result[1]) for result in search_results]
         
@@ -158,4 +170,4 @@ class Serve:
 if __name__ == "__main__":
     llm = LLM(provider="openai")
     chatbot = Serve(llm)
-    chatbot.serve()
+    chatbot.serve() 

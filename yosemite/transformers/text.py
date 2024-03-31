@@ -1,6 +1,7 @@
 import spacy
 from spacy.cli import download
 from typing import List, Tuple, Union
+from concurrent.futures import ThreadPoolExecutor
 
 def ensure_model(model: str):
     try:
@@ -13,26 +14,25 @@ class Chunker:
     A class to chunk text into individual sentences or chunks.
 
     Example:
-    ```python
-    from yosemite.ml.text import Chunker
+        ```python
+        from yosemite.ml.text import Chunker
+        chunker = Chunker()
+        text = "This is a long text. It consists of multiple sentences. The Chunker class will split it into individual sentences or chunks."
+        sentences = chunker.chunk_text(text)
+        for sentence in sentences:
+            print(sentence)
+        ```
 
-    chunker = Chunker()
-    text = "This is a long text. It consists of multiple sentences. The Chunker class will split it into individual sentences or chunks."
-
-    sentences = chunker.chunk_text(text)
-    for sentence in sentences:
-        print(sentence)
-    ```
-
-    ```bash
-    This is a long text.
-    It consists of multiple sentences.
-    The Chunker class will split it into individual sentences or chunks.
-    ```
+        ```bash
+        This is a long text.
+        It consists of multiple sentences.
+        The Chunker class will split it into individual sentences or chunks.
+        ```
 
     Attributes:
         nlp: A spaCy NLP model to process text.
     """
+
     def __init__(self, model: str = "en_core_web_sm"):
         try:
             ensure_model(model)
@@ -40,14 +40,29 @@ class Chunker:
             raise Exception(f"Failed to load spaCy model {model}. Please use the spacy CLI, by entering this command in your terminal 'spacy download {model}'. {e}")
         self.nlp = spacy.load(model)
 
+    def _chunk_text(self, text: str) -> List[str]:
+        doc = self.nlp(text)
+        if len(doc) > 500:  # Adjust the threshold as needed
+            chunks = [chunk.text.strip() for chunk in doc.sents if len(chunk) > 1]
+        else:
+            chunks = [sent.text.strip() for sent in doc.sents]
+
+        # Filter out chunks that are too short or empty
+        chunks = [chunk for chunk in chunks if len(chunk.split()) > 3]  # Adjust the threshold as needed
+
+        # Remove special characters and line breaks
+        chunks = [chunk.replace('\n', ' ').replace('\r', '') for chunk in chunks]
+
+        return chunks
+
     def chunk(self, text: Union[str, List[str], Tuple[str], List[Tuple[str]]]) -> List[str]:
         """
         Chunk text into individual sentences or chunks.
 
         Example:
-        ```python
-        Chunker.chunk("This is a long text. It consists of multiple sentences.")
-        ```
+            ```python
+            Chunker.chunk("This is a long text. It consists of multiple sentences.")
+            ```
 
         Args:
             text: A string, list of strings, tuple of strings, or list of tuples of strings to chunk.
@@ -59,25 +74,16 @@ class Chunker:
             return []
 
         if isinstance(text, str):
-            doc = self.nlp(text)
-            if len(doc) > 500:  # Adjust the threshold as needed
-                chunks = [chunk.text.strip() for chunk in doc.sents if len(chunk) > 1]
-            else:
-                chunks = [sent.text.strip() for sent in doc.sents]
-
-            # Filter out chunks that are too short or empty
-            chunks = [chunk for chunk in chunks if len(chunk.split()) > 3]  # Adjust the threshold as needed
-
-            # Remove special characters and line breaks
-            chunks = [chunk.replace('\n', ' ').replace('\r', '') for chunk in chunks]
-
-            return chunks
-
+            return self._chunk_text(text)
         elif isinstance(text, (list, tuple)):
             if all(isinstance(item, str) for item in text):
-                return [self.chunk(item) for item in text]
+                with ThreadPoolExecutor() as executor:
+                    chunks = list(executor.map(self._chunk_text, text))
+                return [chunk for sublist in chunks for chunk in sublist]
             elif all(isinstance(item, (list, tuple)) for item in text):
-                return [self.chunk(subitem) for item in text for subitem in item]
+                with ThreadPoolExecutor() as executor:
+                    chunks = list(executor.map(self.chunk, text))
+                return [chunk for sublist in chunks for chunk in sublist]
             else:
                 raise ValueError("Invalid input type. Expected str, list, tuple, or list of tuples.")
 

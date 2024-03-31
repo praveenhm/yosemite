@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from sentence_transformers import losses, util, CrossEncoder as CrossEncoderModel
 from sentence_transformers import SentenceTransformer as SentenceTransformerModel
 import torch
@@ -16,22 +16,29 @@ class SentenceTransformer:
 
     Args:
         model : str, optional
-            The name of the SentenceTransformer model to use (default is "paraphrase-MiniLM-L6-v2")
+            The name of the SentenceTransformer model to use (default is "all-MiniLM-L6-v2")
 
     Attributes:
         model : SentenceTransformerModel
             The SentenceTransformer model used for embedding
     """
-    def __init__(self, model: str = "paraphrase-MiniLM-L6-v2"):
+
+    def __init__(self, model: Optional[str] = None):
+        if model is None:
+            model = "all-MiniLM-L6-v2"  # Set a default model name
         self.model = SentenceTransformerModel(model)
 
-    def embed(self, sentences: List[str]) -> List[Tuple[str, List[float]]]:
+    def vectorize(self, sentences: List[str], batch_size: int = 32, convert_to_numpy: bool = True) -> List[Tuple[str, List[float]]]:
         """
         Embeds a list of sentences using the SentenceTransformer model.
 
         Args:
             sentences : List[str]
                 The list of sentences to embed
+            batch_size : int, optional
+                The batch size to use for encoding (default is 32)
+            convert_to_numpy : bool, optional
+                Whether to convert the embeddings to numpy arrays (default is True)
 
         Returns:
             List[Tuple[str, List[float]]]
@@ -39,7 +46,14 @@ class SentenceTransformer:
         """
         if not sentences:
             return []
-        return [(sentence, self.model.encode(sentence)) for sentence in sentences]
+
+        embeddings = []
+        for i in range(0, len(sentences), batch_size):
+            batch_sentences = sentences[i:i+batch_size]
+            batch_embeddings = self.model.encode(batch_sentences, convert_to_numpy=convert_to_numpy)
+            embeddings.extend(zip(batch_sentences, batch_embeddings))
+
+        return embeddings
 
 class CrossEncoder:
     """
