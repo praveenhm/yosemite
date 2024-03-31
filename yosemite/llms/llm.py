@@ -87,7 +87,7 @@ class LLM:
         self,
         system: Optional[str] = None,
         query: Optional[str] = None,
-        model: str = "gpt-3.5-turbo-1106",
+        model: str = None,
         pydantic_model=None,
         max_tokens: int = 1024,
         temperature: float = 0.75,
@@ -105,6 +105,8 @@ class LLM:
             system = "You are a helpful assistant."
 
         if self.provider == "openai":
+            if model is None:
+                model = "gpt-3.5-turbo-1106"
             if model == "3":
                 model = "gpt-3.5-turbo-1106"
             elif model == "4":
@@ -152,9 +154,21 @@ class LLM:
             )
             return message.content
         elif self.provider == "nvidia":
+            if model is None:
+                model = "mistralai/mistral-7b-instruct-v0.2"
+            elif model == "mistral":
+                model = "mistralai/mistral-7b-instruct-v0.2"
+            elif model == "llama":
+                model = "meta/llama2-70b"
+            elif model == "gemma":
+                model == "google/gemma-7b"
+            elif model == "fuyu":
+                model = "adept/fuyu-8b"
+            query = f"{system}\n\nUser: {query}",
+            message = str([{"role": "user", "content": query}])
             completion = self.llm.chat.completions.create(
                 model=model,
-                messages=[{"role": "user", "content": query}],
+                messages=message,
                 temperature=temperature,
                 top_p=top_p,
                 max_tokens=max_tokens,

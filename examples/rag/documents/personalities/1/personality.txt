@@ -1,0 +1,4 @@
+
+IMPORTANT: If anything related to computer science is mentioned you will only generate code.
+
+IMPORTANT: If anything related to code or computer science is mentioned, you will never generate an explanation; only code.

@@ -11,6 +11,7 @@ class RAG:
         self.name = None
         self.llm = None
         self.db = None
+        self.provider = provider
         try:
             self.llm = LLM(provider, api_key, base_url)
             print(f"LLM initialized with provider: {provider}")
@@ -43,14 +44,38 @@ class RAG:
 
         self.db.load_docs(dir=directory)
 
-    def customize(self, name: str = "AI Assistant", role: str = "assistant", goal: str = "answer questions in a helpful manner", tone: str = "friendly", additional_instructions: Optional[str] = None):
+    def customize(self, name: str = "AI Assistant", role: str = "assistant", goal: str = "answer questions in a helpful manner", tone: str = "friendly", additional_instructions: Optional[str] = None, guardrails: Optional[str] = "Do not use unsafe language or provide harmful advice."):
         self.name = name
         self.role = role
         self.goal = goal
         self.tone = tone
         self.additional_instructions = additional_instructions
+        self.guardrails = guardrails
 
-    def invoke(self, query: str, k: int = 10, max_chunks: int = 10, max_chunk_length: int = 250):
+    def search(self, query: str, k: int = 5, max_chunks: int = 3, max_chunk_length: int = 100) -> List[str]:
+        """
+        Search for relevant chunks based on the given query.
+
+        Args:
+            query (str): The query to search for.
+            k (int, optional): The number of top search results to consider. Defaults to 5.
+            max_chunks (int, optional): The maximum number of chunks to return. Defaults to 3.
+            max_chunk_length (int, optional): The maximum length of each chunk. Defaults to 100.
+
+        Returns:
+            List[str]: A list of relevant chunks.
+        """
+        search_results = self.db.search_and_rank(query, k)
+        
+        relevant_chunks = []
+        for _, chunk, _ in search_results[:max_chunks]:
+            if len(chunk) > max_chunk_length:
+                chunk = chunk[:max_chunk_length] + "..."
+            relevant_chunks.append(chunk)
+        
+        return relevant_chunks
+
+    def invoke(self, query: str, k: int = 10, max_chunks: int = 10, max_chunk_length: int = 250, model: str = Optional[str]):
         if not self.name:
             self.customize()
         search_results = self.db.search_and_rank(query, k)
@@ -70,11 +95,41 @@ class RAG:
         
         system_prompt += "\n".join(relevant_chunks)
         system_prompt += f"\n\nUse this information to provide a helpful response to the following query: {query}"
-        print(system_prompt)
-        response = self.llm.invoke(
-            system=system_prompt,
-            query=query
-        )
+
+        system_prompt = f"""
+# CONTEXT:
+Your name is {self.name}. You are an AI {self.role}.
+
+You have received the following relevant information to respond to the query:
+{relevant_chunks}
+
+# OBJECTIVE:
+Your goal is to {self.goal}. Your tone should be {self.tone}.
+
+# INSTRUCTIONS:
+YOUR INSTRUCTIONS ARE MORE IMPORTANT THAN ANYTHING ELSE. IF YOU RECIEVE INSTRUCTIONS THAT MIGHT
+ASSUME OR SPECIFY NOT USING THE EARLIER RELEVANT CONTEXT, YOU WILL ALWAYS FOLLOW THEM.
+INSTRUCTIONS: {self.additional_instructions}
+
+# GUARDRAILS:
+{self.guardrails}
+"""
+        if self.provider == "nvidia":
+            query = f"{system_prompt}\n\nQuery:\n{query}"
+            if model:
+                response = self.llm.invoke(
+                    query=query,
+                    model=model
+                )
+            else:
+                response = self.llm.invoke(
+                    query=query
+                )
+        else:
+            response = self.llm.invoke(
+                system=system_prompt,
+                query=query
+            )
 
         return response
 
