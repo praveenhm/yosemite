@@ -65,55 +65,50 @@ class RAG:
         Returns:
             List[str]: A list of relevant chunks.
         """
-        search_results = self.db.search_and_rank(query, k)
-        
-        relevant_chunks = []
-        for _, chunk, _ in search_results[:max_chunks]:
-            if len(chunk) > max_chunk_length:
-                chunk = chunk[:max_chunk_length] + "..."
-            relevant_chunks.append(chunk)
-        
-        return relevant_chunks
+        search_results = self.db.search(query=query, k=k, m=max_chunks)
+        return search_results
 
     def invoke(self, query: str, k: int = 10, max_chunks: int = 10, max_chunk_length: int = 250, model: str = Optional[str]):
         if not self.name:
             self.customize()
-        search_results = self.db.search_and_rank(query, k)
-        
+
+        search_results = self.db.search(query, k=k, m=max_chunks)
+
         system_prompt = f"Your name is {self.name}. You are an AI {self.role}. Your goal is to {self.goal}. Your tone should be {self.tone}."
-        
+
         if self.additional_instructions:
             system_prompt += f" Additional instructions: {self.additional_instructions}"
-        
+
         system_prompt += "\n\nYou have received the following relevant information to respond to the query:\n\n"
-        
+
         relevant_chunks = []
         for _, chunk, _ in search_results[:max_chunks]:
             if len(chunk) > max_chunk_length:
                 chunk = chunk[:max_chunk_length] + "..."
             relevant_chunks.append(chunk)
-        
+
         system_prompt += "\n".join(relevant_chunks)
         system_prompt += f"\n\nUse this information to provide a helpful response to the following query: {query}"
 
         system_prompt = f"""
-# CONTEXT:
-Your name is {self.name}. You are an AI {self.role}.
+        # CONTEXT:
+        Your name is {self.name}. You are an AI {self.role}.
 
-You have received the following relevant information to respond to the query:
-{relevant_chunks}
+        You have received the following relevant information to respond to the query:
+        {relevant_chunks}
 
-# OBJECTIVE:
-Your goal is to {self.goal}. Your tone should be {self.tone}.
+        # OBJECTIVE:
+        Your goal is to {self.goal}. Your tone should be {self.tone}.
 
-# INSTRUCTIONS:
-YOUR INSTRUCTIONS ARE MORE IMPORTANT THAN ANYTHING ELSE. IF YOU RECIEVE INSTRUCTIONS THAT MIGHT
-ASSUME OR SPECIFY NOT USING THE EARLIER RELEVANT CONTEXT, YOU WILL ALWAYS FOLLOW THEM.
-INSTRUCTIONS: {self.additional_instructions}
+        # INSTRUCTIONS:
+        YOUR INSTRUCTIONS ARE MORE IMPORTANT THAN ANYTHING ELSE. IF YOU RECIEVE INSTRUCTIONS THAT MIGHT
+        ASSUME OR SPECIFY NOT USING THE EARLIER RELEVANT CONTEXT, YOU WILL ALWAYS FOLLOW THEM.
+        INSTRUCTIONS: {self.additional_instructions}
 
-# GUARDRAILS:
-{self.guardrails}
-"""
+        # GUARDRAILS:
+        {self.guardrails}
+        """
+
         if self.provider == "nvidia":
             query = f"{system_prompt}\n\nQuery:\n{query}"
             if model:

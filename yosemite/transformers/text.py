@@ -44,26 +44,21 @@ class Chunker:
     def _chunk_text(self, text: str) -> List[str]:
         doc = self.nlp(text)
         chunks = []
+        current_chunk = []
+        max_sentences = 5
+
         for sent in doc.sents:
-            if len(sent) <= self.max_chunk_length:
-                chunks.append(sent.text.strip())
-            else:
-                words = [token.text for token in sent]
-                chunk = ""
-                for word in words:
-                    if len(chunk) + len(word) <= self.max_chunk_length:
-                        chunk += word + " "
-                    else:
-                        chunks.append(chunk.strip())
-                        chunk = word + " "
-                if chunk:
-                    chunks.append(chunk.strip())
-    
-        chunks = [chunk for chunk in chunks if len(chunk.split()) > 3]
+            current_chunk.append(sent.text.strip())
+            if len(current_chunk) >= max_sentences:
+                chunks.append(" ".join(current_chunk))
+                current_chunk = []
+
+        if current_chunk:
+            chunks.append(" ".join(current_chunk))
+
         chunks = [chunk.replace('\n', ' ').replace('\r', '') for chunk in chunks]
 
         return chunks
-
 
     def chunk(self, text: Union[str, List[str], Tuple[str], List[Tuple[str]]]) -> List[str]:
         """

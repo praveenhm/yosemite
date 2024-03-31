@@ -181,15 +181,16 @@ class Database:
 
         file_paths = [os.path.join(dir, file_path) for file_path in os.listdir(dir)]
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            contents = list(executor.map(self._read_file, file_paths))
-
-        chunks = chunker.chunk(contents)
-        embeddings = self.compute_embeddings(chunks)
-
-        for content, chunk_embeddings in zip(contents, embeddings):
-            doc_id = str(uuid.uuid4())
-            writer.add_document(id=doc_id, content=content, chunks="\n".join(chunks), vectors=chunk_embeddings)
+        for file_path in file_paths:
+            try:
+                content = self._read_file(file_path)
+                if content:
+                    doc_id = str(uuid.uuid4())
+                    chunks = chunker.chunk(content)
+                    embeddings = self.compute_embeddings(chunks)
+                    writer.add_document(id=doc_id, content=content, chunks="\n".join(chunks), vectors=embeddings)
+            except Exception as e:
+                print(f"Error processing file {file_path}: {e}")
 
         writer.commit()
 
@@ -261,7 +262,7 @@ class Database:
             writer.add_document(id=doc_id, content=doc_content, chunks="\n".join(chunks), vectors=vectors)
         writer.commit()
 
-    def search(self, query: str, fields: Optional[List[str]] = None, k: int = 5) -> List[Tuple[str, str, List[float]]]:
+    def search(self, query: str, fields: Optional[List[str]] = None, k: int = 5, m: int = 3) -> List[Tuple[str, str, float]]:
         if not self.ix:
             raise ValueError("Index has not been built or loaded.")
 
@@ -273,29 +274,38 @@ class Database:
             try:
                 q = parser.parse(query)
                 results = searcher.search(q, limit=k)
-                embedder = SentenceTransformer(self.model_name)
-                query_vector = embedder.embed([query])[0][1]
-                ranked_results = []
-                for hit in results:
-                    doc_id = hit["id"]
-                    doc_content = hit["content"]
-                    doc_vectors = hit["vectors"]
-                    if not self.dimension:
-                        self.dimension = len(doc_vectors[0])
-                    index = AnnoyIndex(self.dimension, 'angular')
-                    for i, vector in enumerate(doc_vectors):
-                        index.add_item(i, vector)
-                    index.build(10)
-                    indices = index.get_nns_by_vector(query_vector, k, include_distances=False)
-                    for idx in indices:
-                        chunk = hit["chunks"].split("\n")[idx]
-                        ranked_results.append((doc_id, chunk, doc_vectors[idx].tolist()))
-                return ranked_results
+                doc_ids = [hit["id"] for hit in results]
+                doc_chunks = [hit["chunks"].split("\n") for hit in results]
+                doc_vectors = [hit["vectors"] for hit in results]
+
+                chunk_info = []
+                for doc_id, chunks, vectors in zip(doc_ids, doc_chunks, doc_vectors):
+                    for chunk, vector in zip(chunks, vectors):
+                        chunk_info.append((doc_id, chunk, vector))
+
+                if not self.dimension:
+                    self.dimension = len(chunk_info[0][2])
+
+                index = AnnoyIndex(self.dimension, 'angular')
+                for i, (_, _, vector) in enumerate(chunk_info):
+                    index.add_item(i, vector)
+
+                index.build(10)
+                query_vector = self.model.encode([query])[0]
+                vector_results = index.get_nns_by_vector(query_vector, k * m, include_distances=True)
+
+                chunk_results = [(chunk_info[idx][0], chunk_info[idx][1]) for idx in vector_results[0]]
+
+                cross_encoder = CrossEncoder()
+                ranked_results = cross_encoder.rank(query, [chunk for _, chunk in chunk_results])
+
+                return [(doc_id, chunk, score) for (doc_id, chunk), score in zip(chunk_results, ranked_results)]
+
             except QueryParserError as e:
                 print(f"QueryParserError: {e}")
                 return []
-            
-    def search_and_rank(self, query: str, k: int = 5) -> List[Tuple[str, str, float]]:
+                
+    def search_and_rank(self, query: str, k: int = 5, m: int = 3) -> List[Tuple[str, str, float]]:
         if not self.ix:
             raise ValueError("Index has not been built or loaded.")
 
@@ -305,11 +315,10 @@ class Database:
             keywords = q.all_terms()
 
         with self.ix.searcher() as searcher:
-            # Use the extracted keywords for searching
             q = Or([Term("content", keyword) for keyword in keywords])
             whoosh_results = searcher.search(q, limit=k)
             doc_ids = [hit["id"] for hit in whoosh_results]
-            doc_chunks = [hit["chunks"].split("\n")[:k] for hit in whoosh_results]
+            doc_chunks = [hit["chunks"].split("\n") for hit in whoosh_results]
             doc_vectors = [hit["vectors"] for hit in whoosh_results]
             
             results = []
@@ -319,17 +328,23 @@ class Database:
 
         embedder = SentenceTransformer(self.model_name)
         query_vector = torch.tensor(embedder.encode([query])[0])
+        unique_docs = set()
         vector_results = []
         for doc_id, chunk, vector in results:
-            chunk_vector = torch.tensor(vector)
-            similarity = torch.nn.functional.cosine_similarity(query_vector, chunk_vector, dim=0).item()
-            vector_results.append((doc_id, chunk, float(similarity)))
+            if doc_id not in unique_docs:
+                chunk_vector = torch.tensor(vector)
+                similarity = float(torch.nn.functional.cosine_similarity(query_vector, chunk_vector, dim=0))
+                vector_results.append((doc_id, chunk, similarity))
+                unique_docs.add(doc_id)
+                if len(unique_docs) >= k:
+                    break
 
-        combined_results = vector_results
+        sorted_results = sorted(vector_results, key=lambda x: x[2], reverse=True)[:k*m]
+        
         cross_encode = CrossEncode()
-        ranked_results = cross_encode.rank(query, [result[1] for result in combined_results])
+        ranked_results = cross_encode.rank(query, [result[1] for result in sorted_results])
 
-        return [(doc_id, chunk, score) for (doc_id, chunk, _), score in zip(combined_results, ranked_results)]
+        return [(doc_id, chunk, score) for (doc_id, chunk, _), score in zip(sorted_results, ranked_results)]
 
 if __name__ == "__main__":
     db = Database()

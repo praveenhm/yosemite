@@ -123,7 +123,7 @@ class YosemiteNotebookCommon:
 
     def display_header(self, header: str = None):
         self.header = f"""
-        <div class="darkolivebg p-4 w-full flex flex-col rounded-md mb-2 space-y-2">
+        <div class="darkbg p-4 w-full flex flex-col rounded-md mb-2 space-y-2">
 
         <div class="w-full flex justify-center">
 
@@ -153,11 +153,11 @@ class YosemiteNotebookCommon:
 
     def display_subtitle(self, header = None):
         self.subtitle = f"""
-        <div class="creambg p-4 w-full flex flex-col rounded-md mb-2 space-y-4">
+        <div class="darkbg p-4 w-full flex flex-col rounded-md mb-2 space-y-4">
 
         <div class="w-full flex">
 
-        <span class="lex darkolive font-medium text-2xl">
+        <span class="lex peach font-medium text-2xl">
 
         {header}
 
@@ -233,12 +233,20 @@ class YosemiteNotebookCommon:
         """
         display(HTML(box))
 
-    def box_text_code(self, title: str, content: str, code: str):
+    def box_text_code(self, title: str, content: str, code: str, language: str = "python"):
         box = f"""
-        <div class="creambg p-4 w-full flex flex-col rounded-md mb-2 space-y-4">
-        <h2 class="lex darkolive font-medium text-2xl">{title}</h2>
-        <p class="font-medium dark text-sm">{content}</p>
-        <code class="jet font-medium text-sm">{code}</code>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+<script>hljs.highlightAll();</script>
+
+        <div class="darkbg p-4 w-full flex flex-col rounded-md mb-2 space-y-4">
+        <h2 class="lex cream font-medium text-2xl">{title}</h2>
+        <p class="font-medium cream text-sm">{content}</p>
+        
+        <pre class="w-full language-python"><code class=" language-{language}">
+        {code}
+        </code></pre>
+
         </div>
         """
         display(HTML(box))
